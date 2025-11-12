@@ -1,0 +1,62 @@
+# --- Python ---
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.pdb
+*.sqlite3
+*.db
+
+# --- Virtual environment ---
+venv/
+env/
+ENV/
+.venv/
+.ENV/
+
+# --- Environment & config ---
+*.env
+.env.*
+instance/
+config.pyc
+
+# --- IDE / Editor ---
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# --- OS junk ---
+.DS_Store
+Thumbs.db
+
+# --- Logs & cache ---
+*.log
+*.pot
+*.py[cod]
+*.swp
+*.bak
+*.tmp
+.cache/
+__pycache__/
+.pytest_cache/
+coverage/
+htmlcov/
+
+# --- Build / Dist ---
+build/
+dist/
+*.egg-info/
+*.spec
+
+# --- Node/Tailwind (frontend) ---
+frontend/node_modules/
+frontend/dist/
+frontend/.parcel-cache/
+frontend/.next/
+frontend/.vite/
+
+# --- Misc ---
+*.zip
+*.tar
+*.gz
