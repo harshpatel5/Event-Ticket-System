@@ -1,5 +1,7 @@
 -- Event Ticketing System Database Schema
 -- Phase II - Relational Tables
+CREATE SCHEMA event_ticketing;
+USE event_ticketing;  
 
 CREATE TABLE CATEGORY (
     category_id INT PRIMARY KEY AUTO_INCREMENT,
@@ -76,3 +78,7 @@ CREATE TABLE PURCHASE_TICKET (
     FOREIGN KEY (ticket_id) REFERENCES TICKET(ticket_id) ON DELETE RESTRICT,
     UNIQUE (purchase_id, ticket_id)
 );
+
+ALTER TABLE customer
+ADD COLUMN password_hash VARCHAR(255) NOT NULL AFTER email,
+ADD COLUMN role VARCHAR(20) NOT NULL DEFAULT 'user' AFTER password_hash;

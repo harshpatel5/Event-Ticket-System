@@ -1,16 +1,20 @@
 from flask import Flask, jsonify
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
-from config import Config
+from backend.config import Config
 from sqlalchemy import text
+from flask_jwt_extended import JWTManager
+from backend.routes.auth import auth_bp
+from backend.db import db
 
-db = SQLAlchemy()
+
 
 def create_app():
     app = Flask(__name__)
+    app.register_blueprint(auth_bp, url_prefix="/api/auth")
     app.config.from_object(Config)
     CORS(app)
-
+    jwt = JWTManager(app)
     db.init_app(app)
 
     @app.route("/health")
