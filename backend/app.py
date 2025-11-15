@@ -14,6 +14,7 @@ def create_app():
     app.register_blueprint(auth_bp, url_prefix="/api/auth")
     app.config.from_object(Config)
     CORS(app)
+    app.config["JWT_LEEWAY"] = 30
     jwt = JWTManager(app)
     db.init_app(app)
 

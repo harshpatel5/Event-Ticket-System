@@ -1,11 +1,14 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, send_file
 from backend.db import db
 from backend.models.customer import Event
 from backend.models.customer import Customer
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity, get_jwt
 from backend.utils.roles import admin_required
 from datetime import datetime
+import requests
 import traceback
+import csv
+import os
 auth_bp = Blueprint("auth", __name__)
 
 @auth_bp.route("/register", methods=["POST"])
@@ -350,3 +353,152 @@ def get_purchases():
         print(f"❌ Error in /purchases: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
+@auth_bp.route("/weather/<city>", methods=["GET"])
+@jwt_required(optional=True)
+def get_weather(city):
+    try:
+        # Replace spaces with '+' for URL safety
+        city_query = city.replace(" ", "+")
+        url = f"https://geocoding-api.open-meteo.com/v1/search?name={city_query}&count=1"
+
+        geo_response = requests.get(url)
+        geo_data = geo_response.json()
+
+        if "results" not in geo_data or len(geo_data["results"]) == 0:
+            return jsonify({"error": "City not found"}), 404
+
+        lat = geo_data["results"][0]["latitude"]
+        lon = geo_data["results"][0]["longitude"]
+
+        weather_url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current_weather=true"
+        weather_response = requests.get(weather_url)
+        weather_data = weather_response.json()
+
+        current = weather_data.get("current_weather", {})
+        if not current:
+            return jsonify({"error": "No weather data available"}), 500
+
+        return jsonify({
+            "city": city,
+            "temperature": current["temperature"],
+            "windspeed": current["windspeed"],
+            "weather_code": current["weathercode"]
+        })
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+    
+@auth_bp.route("/weather/event/<int:event_id>", methods=["GET"])
+@jwt_required(optional=True)
+def get_event_weather(event_id):
+    try:
+        from backend.models.customer import Event, Venue
+        import requests
+
+        # Find the event
+        event = Event.query.get(event_id)
+        if not event:
+            return jsonify({"error": "Event not found"}), 404
+
+        # Get venue
+        venue = Venue.query.get(event.venue_id)
+        if not venue:
+            return jsonify({"error": "Venue not found"}), 404
+
+        city = venue.city
+        city_query = city.replace(" ", "+")
+        url = f"https://geocoding-api.open-meteo.com/v1/search?name={city_query}&count=1"
+
+        geo_response = requests.get(url)
+        geo_data = geo_response.json()
+
+        if "results" not in geo_data or len(geo_data["results"]) == 0:
+            return jsonify({"error": "City not found"}), 404
+
+        lat = geo_data["results"][0]["latitude"]
+        lon = geo_data["results"][0]["longitude"]
+
+        weather_url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current_weather=true"
+        weather_response = requests.get(weather_url)
+        weather_data = weather_response.json()
+
+        current = weather_data.get("current_weather", {})
+        if not current:
+            return jsonify({"error": "No weather data available"}), 500
+
+        return jsonify({
+            "event_name": event.event_name,
+            "venue": venue.venue_name,
+            "city": city,
+            "temperature": current["temperature"],
+            "windspeed": current["windspeed"],
+            "weather_code": current["weathercode"]
+        })
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+
+
+
+@auth_bp.route("/export/purchases", methods=["GET"])
+@jwt_required()
+def export_purchases():
+    try:
+        from backend.models.customer import db, Purchase, PurchaseTicket, Ticket, Event, Customer
+
+        claims = get_jwt()
+        if claims.get("role") != "admin":
+            return jsonify({"error": "Admin only"}), 403
+
+        export_dir = os.path.join(os.path.dirname(__file__), "..", "exports")
+        os.makedirs(export_dir, exist_ok=True)
+        filepath = os.path.join(export_dir, "purchases_export.csv")
+
+        with open(filepath, mode="w", newline="", encoding="utf-8") as file:
+            writer = csv.writer(file)
+            writer.writerow([
+                "Purchase ID", "Customer ID", "Customer Email",
+                "Event Name", "Ticket Type", "Unit Price", "Quantity", "Line Subtotal",
+                "Total Amount", "Payment Method", "Payment Status", "Purchase Date"
+            ])
+
+            purchases = Purchase.query.order_by(Purchase.purchase_id.asc()).all()
+            for p in purchases:
+                customer = Customer.query.get(p.customer_id)
+                pts = p.purchase_tickets
+                first = True
+                for pt in pts:
+                    ticket = Ticket.query.get(pt.ticket_id)
+                    event = Event.query.get(ticket.event_id) if ticket else None
+
+                    total_amt  = float(p.total_amount) if first else ""
+                    pay_method = p.payment_method if first else ""
+                    pay_status = p.payment_status if first else ""
+                    purch_date = p.purchase_date.strftime("%Y-%m-%d %H:%M") if first else ""
+
+                    writer.writerow([
+                        p.purchase_id if first else "",
+                        customer.customer_id if first else "",
+                        customer.email if first else "",
+                        event.event_name if event else "Unknown",
+                        ticket.ticket_type if ticket else "Unknown",
+                        f"{float(ticket.price):.2f}" if ticket else "",
+                        pt.quantity,
+                        f"{float(pt.subtotal):.2f}",
+                        f"{total_amt:.2f}" if isinstance(total_amt, float) else total_amt,
+                        pay_method,
+                        pay_status,
+                        purch_date
+                    ])
+                    first = False
+
+        return send_file(filepath, as_attachment=True)
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500

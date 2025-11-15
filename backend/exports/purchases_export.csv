@@ -1,0 +1,3 @@
+Purchase ID,Customer ID,Customer Email,Event Name,Ticket Type,Quantity,Subtotal,Total Amount,Payment Method,Payment Status,Purchase Date
+1,2,test@example.com,Rock Legends Live,VIP,1,150.0,450.0,Credit Card,Completed,2025-10-16 10:20:00
+1,2,test@example.com,Basketball Championship,Courtside,1,300.0,450.0,Credit Card,Completed,2025-10-16 10:20:00
