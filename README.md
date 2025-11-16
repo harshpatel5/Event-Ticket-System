@@ -24,6 +24,7 @@ DB_NAME=event_ticketing
 ```
 
 5. Start app
+
 *linux*
 ```bash
 export FLASK_APP=backend/app.py
