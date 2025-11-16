@@ -79,6 +79,6 @@ CREATE TABLE PURCHASE_TICKET (
     UNIQUE (purchase_id, ticket_id)
 );
 
-ALTER TABLE customer
+ALTER TABLE CUSTOMER
 ADD COLUMN password_hash VARCHAR(255) NOT NULL AFTER email,
 ADD COLUMN role VARCHAR(20) NOT NULL DEFAULT 'user' AFTER password_hash;
