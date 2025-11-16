@@ -9,7 +9,7 @@ source venv/bin/activate
 pip install flask flask-cors flask-sqlalchemy
 ```
 
-3. Create Database in mysql named ``"event_ticket_system"``
+3. Create Database in mysql named ``"event_ticketing"``
 - Use the database structure from [tables.sql](Database/tables.sql)
 - Use the sample data from [sampledata.sql](Database/sampledata.sql)
 
@@ -19,7 +19,7 @@ DB_HOST=localhost
 DB_PORT=3306
 DB_USER=root
 DB_PASSWORD=your_password
-DB_NAME=event_ticket_system
+DB_NAME=event_ticketing
 
 ```
 
