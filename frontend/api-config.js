@@ -1,78 +1,118 @@
 // ============================================================
 // API Configuration
 // ============================================================
-// Replace with your actual API base URL
-const API_BASE_URL = 'http://localhost:3000/api'; // or your backend URL
 
-// API Endpoints matching your database structure
+// Change port if your Flask app runs somewhere else
+const API_BASE_URL = "http://localhost:5000/api/auth";
+
+// API Endpoints matching your Flask routes
 const API_ENDPOINTS = {
-  // Event endpoints
+  auth: {
+    register: `${API_BASE_URL}/register`,
+    login: `${API_BASE_URL}/login`,
+    me: `${API_BASE_URL}/me`,
+  },
+
   events: {
     getAll: `${API_BASE_URL}/events`,
     getById: (id) => `${API_BASE_URL}/events/${id}`,
-    getByCategory: (categoryId) => `${API_BASE_URL}/events/category/${categoryId}`,
-    getByStatus: (status) => `${API_BASE_URL}/events/status/${status}`,
-    search: `${API_BASE_URL}/events/search`
   },
-  
-  // Ticket endpoints
-  tickets: {
-    getByEvent: (eventId) => `${API_BASE_URL}/tickets/event/${eventId}`,
-    getById: (id) => `${API_BASE_URL}/tickets/${id}`
+
+  // 🔐 Admin-only endpoints
+  admin: {
+    getMyEvents: `${API_BASE_URL}/admin/events`,
   },
-  
-  // Category endpoints
-  categories: {
-    getAll: `${API_BASE_URL}/categories`,
-    getById: (id) => `${API_BASE_URL}/categories/${id}`
-  },
-  
-  // Venue endpoints
-  venues: {
-    getAll: `${API_BASE_URL}/venues`,
-    getById: (id) => `${API_BASE_URL}/venues/${id}`,
-    getByCity: (city) => `${API_BASE_URL}/venues/city/${city}`
-  },
-  
-  // Customer/Authentication endpoints
-  customers: {
-    register: `${API_BASE_URL}/customers/register`,
-    login: `${API_BASE_URL}/customers/login`,
-    getProfile: (id) => `${API_BASE_URL}/customers/${id}`
-  },
-  
-  // Purchase endpoints
+
+  // Purchases & tickets based on your existing routes
   purchases: {
-    create: `${API_BASE_URL}/purchases`,
-    getById: (id) => `${API_BASE_URL}/purchases/${id}`,
-    getByCustomer: (customerId) => `${API_BASE_URL}/purchases/customer/${customerId}`
-  }
+    create: `${API_BASE_URL}/tickets/buy`,
+    getMine: `${API_BASE_URL}/purchases`,
+  },
+
+  tickets: {
+    myTickets: `${API_BASE_URL}/tickets/my`,
+  },
+
+  export: {
+    purchases: `${API_BASE_URL}/export/purchases`,
+  },
+
+  weather: {
+    byCity: (city) => `${API_BASE_URL}/weather/${encodeURIComponent(city)}`,
+    byEvent: (eventId) => `${API_BASE_URL}/weather/event/${eventId}`,
+  },
 };
 
 // ============================================================
 // API Helper Functions
 // ============================================================
 
-// Generic fetch wrapper with error handling
+// Generic fetch wrapper with error handling + JWT injection
 async function apiRequest(url, options = {}) {
   try {
+    const token = localStorage.getItem("authToken");
+
+    const headers = {
+      "Content-Type": "application/json",
+      ...(options.headers || {}),
+    };
+
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
+
     const response = await fetch(url, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...options.headers
-      },
-      ...options
+      ...options,
+      headers,
     });
-    
+
     if (!response.ok) {
+      const text = await response.text().catch(() => "");
+      console.error("API error body:", text);
       throw new Error(`API Error: ${response.status} - ${response.statusText}`);
     }
-    
+
+    // For 204 etc.
+    if (response.status === 204) {
+      return null;
+    }
+
     return await response.json();
   } catch (error) {
-    console.error('API Request failed:', error);
+    console.error("API Request failed:", error);
     throw error;
   }
+}
+
+// ============================================================
+// Auth API Functions
+// ============================================================
+
+async function registerCustomer(customerData) {
+  return await apiRequest(API_ENDPOINTS.auth.register, {
+    method: "POST",
+    body: JSON.stringify(customerData),
+  });
+}
+
+async function loginCustomer(email, password) {
+  const data = await apiRequest(API_ENDPOINTS.auth.login, {
+    method: "POST",
+    body: JSON.stringify({ email, password }),
+  });
+
+  // Expecting { token, role, email, first_name, last_name }
+  if (data && data.token) {
+    localStorage.setItem("authToken", data.token);
+    localStorage.setItem("authRole", data.role || "user");
+    localStorage.setItem("authEmail", data.email || "");
+  }
+
+  return data;
+}
+
+async function fetchCurrentUser() {
+  return await apiRequest(API_ENDPOINTS.auth.me);
 }
 
 // ============================================================
@@ -87,80 +127,26 @@ async function fetchEventById(eventId) {
   return await apiRequest(API_ENDPOINTS.events.getById(eventId));
 }
 
-async function fetchEventsByCategory(categoryId) {
-  return await apiRequest(API_ENDPOINTS.events.getByCategory(categoryId));
-}
-
-async function fetchUpcomingEvents() {
-  return await apiRequest(API_ENDPOINTS.events.getByStatus('Upcoming'));
-}
-
-async function searchEvents(searchTerm, city = '', dateFilter = '') {
-  const params = new URLSearchParams({
-    q: searchTerm,
-    city: city,
-    date: dateFilter
-  });
-  return await apiRequest(`${API_ENDPOINTS.events.search}?${params}`);
+// 🔐 Admin: fetch only events owned by this organizer (by email)
+async function fetchAdminEvents() {
+  return await apiRequest(API_ENDPOINTS.admin.getMyEvents);
 }
 
 // ============================================================
-// Ticket API Functions
-// ============================================================
-
-async function fetchTicketsByEvent(eventId) {
-  return await apiRequest(API_ENDPOINTS.tickets.getByEvent(eventId));
-}
-
-// ============================================================
-// Category API Functions
-// ============================================================
-
-async function fetchAllCategories() {
-  return await apiRequest(API_ENDPOINTS.categories.getAll);
-}
-
-// ============================================================
-// Venue API Functions
-// ============================================================
-
-async function fetchAllVenues() {
-  return await apiRequest(API_ENDPOINTS.venues.getAll);
-}
-
-async function fetchVenuesByCity(city) {
-  return await apiRequest(API_ENDPOINTS.venues.getByCity(city));
-}
-
-// ============================================================
-// Purchase API Functions
+// Purchase / Ticket Helpers
 // ============================================================
 
 async function createPurchase(purchaseData) {
   return await apiRequest(API_ENDPOINTS.purchases.create, {
-    method: 'POST',
-    body: JSON.stringify(purchaseData)
+    method: "POST",
+    body: JSON.stringify(purchaseData),
   });
 }
 
-async function fetchCustomerPurchases(customerId) {
-  return await apiRequest(API_ENDPOINTS.purchases.getByCustomer(customerId));
+async function fetchMyPurchases() {
+  return await apiRequest(API_ENDPOINTS.purchases.getMine);
 }
 
-// ============================================================
-// Customer/Auth API Functions
-// ============================================================
-
-async function registerCustomer(customerData) {
-  return await apiRequest(API_ENDPOINTS.customers.register, {
-    method: 'POST',
-    body: JSON.stringify(customerData)
-  });
-}
-
-async function loginCustomer(email, password) {
-  return await apiRequest(API_ENDPOINTS.customers.login, {
-    method: 'POST',
-    body: JSON.stringify({ email, password })
-  });
+async function fetchMyTickets() {
+  return await apiRequest(API_ENDPOINTS.tickets.myTickets);
 }
