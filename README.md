@@ -18,20 +18,30 @@ pip install flask flask-cors flask-sqlalchemy flask_jwt_extended python-dotenv p
 DB_HOST=localhost
 DB_PORT=3306
 DB_USER=root
-DB_PASSWORD=your_password
+DB_PASS=your_password
 DB_NAME=event_ticketing
 
 ```
 
-5. Start app
+5. Start backend
 
 *linux*
 ```bash
-export FLASK_APP=backend/app.py
+export FLASK_APP=backend.app:create-app
+
 flask run
 ```
 *windows*
 ```powershell
-$env:FLASK_APP = "backend/app,py"
-flash run
+$env:FLASK_APP="backend.app:create-app"
+flask run
+```
+
+6. Start frontend
+If using vscode start live server by pressing the button
+
+If using a different IDE or running in terminal
+```bash
+cd frontend
+python -m http.server 5500
 ```
