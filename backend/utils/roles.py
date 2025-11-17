@@ -1,21 +1,17 @@
+# backend/utils/roles.py
 from functools import wraps
-from flask_jwt_extended import verify_jwt_in_request, get_jwt_identity, get_jwt
 from flask import jsonify
-
-
-
-from functools import wraps
 from flask_jwt_extended import verify_jwt_in_request, get_jwt
-from flask import jsonify
+
 
 def admin_required(fn):
     @wraps(fn)
     def wrapper(*args, **kwargs):
+        # ensure JWT exists
         verify_jwt_in_request()
         claims = get_jwt()
-
         if claims.get("role") != "admin":
             return jsonify({"error": "Admin only"}), 403
-
         return fn(*args, **kwargs)
+
     return wrapper

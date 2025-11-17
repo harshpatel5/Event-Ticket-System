@@ -1,36 +1,60 @@
+# backend/routes/auth.py
 from flask import Blueprint, request, jsonify, send_file
-from backend.db import db
-from backend.models.customer import Event, Category, Venue, Ticket, Customer, Purchase, PurchaseTicket
-
-
-
-from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity, get_jwt
-from backend.utils.roles import admin_required
+from flask_jwt_extended import (
+    create_access_token,
+    jwt_required,
+    get_jwt_identity,
+    get_jwt,
+)
 from datetime import datetime
-import requests
-import traceback
 import csv
 import os
-auth_bp = Blueprint("auth", __name__)
+import traceback
+import requests
+
+from backend.db import db
+from backend.models.customer import (
+    Event,
+    Category,
+    Venue,
+    Ticket,
+    Customer,
+    Purchase,
+    PurchaseTicket,
+)
+from backend.utils.roles import admin_required
+
+# NOTE: blueprint prefix will be /api + this -> /api/auth/...
+auth_bp = Blueprint("auth", __name__, url_prefix="/auth")
+
+
+# ============================================================
+# AUTH: REGISTER / LOGIN / ME / ADMIN TEST
+# ============================================================
 
 @auth_bp.route("/register", methods=["POST"])
 def register():
+    """
+    Register a new customer.
+    Expects JSON: { first_name, last_name, email, password }
+    """
     try:
-        print("Request received!")
-        print("Content-Type:", request.headers.get('Content-Type'))
-        print("Data:", request.get_json())
-        data = request.get_json()
+        data = request.get_json() or {}
         email = data.get("email")
         password = data.get("password")
+
+        if not email or not password:
+            return jsonify({"error": "Email and password are required"}), 400
 
         if Customer.query.filter_by(email=email).first():
             return jsonify({"error": "Email already exists"}), 400
 
         customer = Customer(
-        email=email,
-        first_name=data.get("first_name"),
-        last_name=data.get("last_name"),
-        registration_date=datetime.now().date()
+            email=email,
+            first_name=data.get("first_name"),
+            last_name=data.get("last_name"),
+            registration_date=datetime.now().date(),
+            role="user",  # default role
         )
         customer.set_password(password)
         db.session.add(customer)
@@ -40,51 +64,76 @@ def register():
     except Exception as e:
         db.session.rollback()
         print(f"Error in register: {str(e)}")
+        traceback.print_exc()
         return jsonify({"error": str(e)}), 500
+
 
 @auth_bp.route("/login", methods=["POST"])
 def login():
-    data = request.json
+    """
+    Login and get JWT token.
+    Expects JSON: { email, password }
+    """
+    data = request.get_json() or {}
     email = data.get("email")
     password = data.get("password")
+
+    if not email or not password:
+        return jsonify({"error": "Email and password are required"}), 400
 
     customer = Customer.query.filter_by(email=email).first()
     if not customer or not customer.check_password(password):
         return jsonify({"error": "Invalid credentials"}), 401
 
-    #token = create_access_token(identity={"customer_id": customer.customer_id, "role": customer.role})
+    # identity is customer_id, plus role in custom claims
     token = create_access_token(
         identity=str(customer.customer_id),
-        additional_claims={"role": customer.role}
+        additional_claims={"role": customer.role},
     )
     return jsonify({"token": token})
+
 
 @auth_bp.route("/me", methods=["GET"])
 @jwt_required()
 def me():
-    identity = get_jwt_identity()   # this is the customer_id as a string
-    claims = get_jwt()              # contains the role
+    """
+    Return current logged-in user info (id + role).
+    """
+    identity = get_jwt_identity()  # customer_id as string
+    claims = get_jwt()  # includes role
 
-    return jsonify({
-        "customer_id": int(identity),
-        "role": claims.get("role")
-    })
+    return jsonify(
+        {
+            "customer_id": int(identity),
+            "role": claims.get("role"),
+        }
+    )
+
 
 @auth_bp.route("/admin-test", methods=["GET"])
 @admin_required
 def admin_test():
+    """
+    Simple admin-only endpoint to verify role protection.
+    """
     return jsonify({"message": "You are an admin"})
 
 
-# Create Event (Admin only)
+# ============================================================
+# ADMIN EVENT MANAGEMENT (separate from public /api/events/)
+# ============================================================
+
 @auth_bp.route("/events", methods=["POST"])
 @jwt_required()
 def create_event():
+    """
+    Create new event (admin only).
+    """
     claims = get_jwt()
     if claims.get("role") != "admin":
         return jsonify({"error": "Admin access required"}), 403
 
-    data = request.get_json()
+    data = request.get_json() or {}
     try:
         name = data.get("event_name")
         date = data.get("event_date")
@@ -94,9 +143,8 @@ def create_event():
         category_id = data.get("category_id")
         venue_id = data.get("venue_id")
         total_tickets = data.get("total_tickets")
-        ticket_price = data.get("ticket_price", 0.0)
 
-        # Basic Validation
+        # Basic required checks
         if not all([name, date, organizer_name, category_id, venue_id, total_tickets]):
             return jsonify({"error": "Missing required fields"}), 400
 
@@ -121,61 +169,83 @@ def create_event():
 
     except Exception as e:
         db.session.rollback()
+        traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
-# Get all events (Public)
+
 @auth_bp.route("/events", methods=["GET"])
-def get_events():
+@jwt_required()
+def get_events_admin():
+    """
+    Admin view of all events (separate from public /api/events/).
+    """
     try:
         events = Event.query.all()
         result = []
         for e in events:
-            result.append({
-                "event_id": e.event_id,
-                "event_name": e.event_name,
-                "event_date": e.event_date.strftime("%Y-%m-%d %H:%M:%S"),
-                "organizer_name": e.organizer_name,
-                "status": e.status,
-                "tickets_sold": e.tickets_sold,
-                "total_tickets": e.total_tickets
-            })
+            result.append(
+                {
+                    "event_id": e.event_id,
+                    "event_name": e.event_name,
+                    "event_date": e.event_date.strftime("%Y-%m-%d %H:%M:%S"),
+                    "organizer_name": e.organizer_name,
+                    "status": e.status,
+                    "tickets_sold": e.tickets_sold,
+                    "total_tickets": e.total_tickets,
+                }
+            )
         return jsonify(result), 200
     except Exception as e:
+        traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
-# Update Event (Admin only)
+
 @auth_bp.route("/events/<int:event_id>", methods=["PUT"])
 @jwt_required()
 def update_event(event_id):
+    """
+    Update event details (admin only).
+    """
     claims = get_jwt()
     if claims.get("role") != "admin":
         return jsonify({"error": "Admin access required"}), 403
 
-    data = request.get_json()
+    data = request.get_json() or {}
     event = Event.query.get(event_id)
     if not event:
         return jsonify({"error": "Event not found"}), 404
 
     try:
-        for field in ["event_name", "description", "organizer_name", "organizer_email", "status"]:
+        for field in [
+            "event_name",
+            "description",
+            "organizer_name",
+            "organizer_email",
+            "status",
+        ]:
             if field in data:
                 setattr(event, field, data[field])
 
         if "event_date" in data:
-            event.event_date = datetime.strptime(data["event_date"], "%Y-%m-%d %H:%M:%S")
+            event.event_date = datetime.strptime(
+                data["event_date"], "%Y-%m-%d %H:%M:%S"
+            )
 
         db.session.commit()
         return jsonify({"message": "Event updated successfully"}), 200
 
     except Exception as e:
         db.session.rollback()
+        traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
-# Delete Event (Admin only)
+
 @auth_bp.route("/events/<int:event_id>", methods=["DELETE"])
 @jwt_required()
 def delete_event(event_id):
-
+    """
+    Delete an event (admin only).
+    """
     claims = get_jwt()
     if claims.get("role") != "admin":
         return jsonify({"error": "Admin access required"}), 403
@@ -191,16 +261,31 @@ def delete_event(event_id):
 
     except Exception as e:
         db.session.rollback()
+        traceback.print_exc()
         return jsonify({"error": str(e)}), 500
-    
+
+
+# ============================================================
+# TICKET PURCHASE FLOW (requires login)
+# ============================================================
+
 @auth_bp.route("/tickets/buy", methods=["POST"])
 @jwt_required()
 def buy_tickets():
+    """
+    Buy tickets (logged-in user).
+    Expects JSON:
+    {
+      "tickets": [
+         {"ticket_id": 1, "quantity": 2},
+         ...
+      ],
+      "payment_method": "Credit Card"
+    }
+    """
     try:
-        from backend.models.customer import Purchase, PurchaseTicket, Ticket  # adjust if needed
-
         identity = get_jwt_identity()
-        data = request.get_json()
+        data = request.get_json() or {}
 
         ticket_items = data.get("tickets", [])
         payment_method = data.get("payment_method", "Credit Card")
@@ -208,7 +293,7 @@ def buy_tickets():
         if not ticket_items or not isinstance(ticket_items, list):
             return jsonify({"error": "Invalid or empty ticket list"}), 400
 
-        total_amount = 0
+        total_amount = 0.0
         purchase_ticket_entries = []
 
         for item in ticket_items:
@@ -223,24 +308,34 @@ def buy_tickets():
                 return jsonify({"error": f"Ticket ID {ticket_id} not found"}), 404
 
             if ticket.quantity_available < quantity:
-                return jsonify({"error": f"Not enough tickets for Ticket ID {ticket_id}"}), 400
+                return (
+                    jsonify(
+                        {
+                            "error": f"Not enough tickets for Ticket ID {ticket_id}",
+                        }
+                    ),
+                    400,
+                )
 
             subtotal = float(ticket.price) * quantity
             total_amount += subtotal
 
-            purchase_ticket_entries.append({
-                "ticket_id": ticket_id,
-                "quantity": quantity,
-                "subtotal": subtotal
-            })
+            purchase_ticket_entries.append(
+                {
+                    "ticket_id": ticket_id,
+                    "quantity": quantity,
+                    "subtotal": subtotal,
+                }
+            )
 
             ticket.quantity_available -= quantity  # Reduce inventory
 
         new_purchase = Purchase(
-            customer_id=identity,
+            customer_id=int(identity),
             total_amount=total_amount,
             payment_method=payment_method,
-            payment_status="Completed"
+            payment_status="Completed",
+            purchase_date=datetime.utcnow(),
         )
 
         db.session.add(new_purchase)
@@ -251,115 +346,137 @@ def buy_tickets():
                 purchase_id=new_purchase.purchase_id,
                 ticket_id=entry["ticket_id"],
                 quantity=entry["quantity"],
-                subtotal=entry["subtotal"]
+                subtotal=entry["subtotal"],
             )
             db.session.add(pt)
 
         db.session.commit()
-        return jsonify({"message": "Purchase successful", "total": total_amount}), 201
+        return (
+            jsonify(
+                {
+                    "message": "Purchase successful",
+                    "total": total_amount,
+                    "purchase_id": new_purchase.purchase_id,
+                }
+            ),
+            201,
+        )
 
     except Exception as e:
         db.session.rollback()
-        return jsonify({"error": str(e)}), 500
-    except Exception as e:
         traceback.print_exc()
-    return jsonify({"error": "Something went wrong", "details": str(e)}), 500
+        return jsonify({"error": str(e)}), 500
 
 
 @auth_bp.route("/tickets/my", methods=["GET"])
 @jwt_required()
 def view_my_tickets():
-    from backend.models.customer import Purchase, PurchaseTicket, Ticket, Event  # adjust if needed
-
+    """
+    View all tickets for the current user (based on Purchase + PurchaseTicket).
+    """
     identity = get_jwt_identity()
 
     try:
-        purchases = Purchase.query.filter_by(customer_id=identity).all()
+        purchases = Purchase.query.filter_by(customer_id=int(identity)).all()
         results = []
 
         for purchase in purchases:
-            tickets = PurchaseTicket.query.filter_by(purchase_id=purchase.purchase_id).all()
+            tickets_pt = PurchaseTicket.query.filter_by(
+                purchase_id=purchase.purchase_id
+            ).all()
             ticket_details = []
 
-            for pt in tickets:
+            for pt in tickets_pt:
                 ticket = Ticket.query.get(pt.ticket_id)
                 event = Event.query.get(ticket.event_id) if ticket else None
 
-                ticket_details.append({
-                    "ticket_type": ticket.ticket_type if ticket else "N/A",
-                    "event": event.event_name if event else "Unknown",
-                    "quantity": pt.quantity,
-                    "subtotal": float(pt.subtotal)
-                })
+                ticket_details.append(
+                    {
+                        "ticket_type": ticket.ticket_type if ticket else "N/A",
+                        "event": event.event_name if event else "Unknown",
+                        "quantity": pt.quantity,
+                        "subtotal": float(pt.subtotal),
+                    }
+                )
 
-            results.append({
-                "purchase_id": purchase.purchase_id,
-                "total_amount": float(purchase.total_amount),
-                "payment_method": purchase.payment_method,
-                "purchase_date": purchase.purchase_date.strftime("%Y-%m-%d %H:%M:%S"),
-                "tickets": ticket_details
-            })
+            results.append(
+                {
+                    "purchase_id": purchase.purchase_id,
+                    "total_amount": float(purchase.total_amount),
+                    "payment_method": purchase.payment_method,
+                    "purchase_date": purchase.purchase_date.strftime(
+                        "%Y-%m-%d %H:%M:%S"
+                    ),
+                    "tickets": ticket_details,
+                }
+            )
 
         return jsonify(results), 200
 
     except Exception as e:
+        traceback.print_exc()
         return jsonify({"error": str(e)}), 500
+
 
 @auth_bp.route("/purchases", methods=["GET"])
 @jwt_required()
 def get_purchases():
+    """
+    View purchases for the current user, with item breakdown.
+    """
     try:
         identity = get_jwt_identity()
         user_id = int(identity)
 
-        print(f"🔹 Fetching purchases for user_id: {user_id}")
+        from backend.models.customer import Purchase as PModel
 
-        from backend.models.customer import db, Purchase, PurchaseTicket, Ticket, Event
-
-        purchases = Purchase.query.filter_by(customer_id=user_id).all()
-        print(f"🔹 Found {len(purchases)} purchases")
-
+        purchases = PModel.query.filter_by(customer_id=user_id).all()
         result = []
 
         for purchase in purchases:
-            print(f"➡️ Purchase ID: {purchase.purchase_id}")
             items = []
-
             for pt in purchase.purchase_tickets:
-                print(f"   ↳ PurchaseTicket ID: {pt.purchase_ticket_id}")
                 ticket = Ticket.query.get(pt.ticket_id)
                 event = Event.query.get(ticket.event_id) if ticket else None
 
-                items.append({
-                    "ticket_id": pt.ticket_id,
-                    "ticket_type": ticket.ticket_type if ticket else "Unknown",
-                    "event_name": event.event_name if event else "Unknown",
-                    "quantity": pt.quantity,
-                    "subtotal": float(pt.subtotal)
-                })
+                items.append(
+                    {
+                        "ticket_id": pt.ticket_id,
+                        "ticket_type": ticket.ticket_type if ticket else "Unknown",
+                        "event_name": event.event_name if event else "Unknown",
+                        "quantity": pt.quantity,
+                        "subtotal": float(pt.subtotal),
+                    }
+                )
 
-            result.append({
-                "purchase_id": purchase.purchase_id,
-                "purchase_date": purchase.purchase_date.strftime("%Y-%m-%d %H:%M:%S"),
-                "total_amount": float(purchase.total_amount),
-                "payment_method": purchase.payment_method,
-                "payment_status": purchase.payment_status,
-                "items": items
-            })
+            result.append(
+                {
+                    "purchase_id": purchase.purchase_id,
+                    "purchase_date": purchase.purchase_date.strftime(
+                        "%Y-%m-%d %H:%M:%S"
+                    ),
+                    "total_amount": float(purchase.total_amount),
+                    "payment_method": purchase.payment_method,
+                    "payment_status": purchase.payment_status,
+                    "items": items,
+                }
+            )
 
         return jsonify(result), 200
 
     except Exception as e:
-        import traceback
         traceback.print_exc()
-        print(f"❌ Error in /purchases: {str(e)}")
         return jsonify({"error": str(e)}), 500
+
+
+# ============================================================
+# WEATHER (EXTERNAL API) – already good for Phase III later
+# ============================================================
 
 @auth_bp.route("/weather/<city>", methods=["GET"])
 @jwt_required(optional=True)
 def get_weather(city):
     try:
-        # Replace spaces with '+' for URL safety
         city_query = city.replace(" ", "+")
         url = f"https://geocoding-api.open-meteo.com/v1/search?name={city_query}&count=1"
 
@@ -372,7 +489,10 @@ def get_weather(city):
         lat = geo_data["results"][0]["latitude"]
         lon = geo_data["results"][0]["longitude"]
 
-        weather_url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current_weather=true"
+        weather_url = (
+            f"https://api.open-meteo.com/v1/forecast"
+            f"?latitude={lat}&longitude={lon}&current_weather=true"
+        )
         weather_response = requests.get(weather_url)
         weather_data = weather_response.json()
 
@@ -380,31 +500,28 @@ def get_weather(city):
         if not current:
             return jsonify({"error": "No weather data available"}), 500
 
-        return jsonify({
-            "city": city,
-            "temperature": current["temperature"],
-            "windspeed": current["windspeed"],
-            "weather_code": current["weathercode"]
-        })
+        return jsonify(
+            {
+                "city": city,
+                "temperature": current["temperature"],
+                "windspeed": current["windspeed"],
+                "weather_code": current["weathercode"],
+            }
+        )
 
     except Exception as e:
-        import traceback
         traceback.print_exc()
         return jsonify({"error": str(e)}), 500
-    
+
+
 @auth_bp.route("/weather/event/<int:event_id>", methods=["GET"])
 @jwt_required(optional=True)
 def get_event_weather(event_id):
     try:
-        from backend.models.customer import Event, Venue
-        import requests
-
-        # Find the event
         event = Event.query.get(event_id)
         if not event:
             return jsonify({"error": "Event not found"}), 404
 
-        # Get venue
         venue = Venue.query.get(event.venue_id)
         if not venue:
             return jsonify({"error": "Venue not found"}), 404
@@ -422,7 +539,10 @@ def get_event_weather(event_id):
         lat = geo_data["results"][0]["latitude"]
         lon = geo_data["results"][0]["longitude"]
 
-        weather_url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current_weather=true"
+        weather_url = (
+            f"https://api.open-meteo.com/v1/forecast"
+            f"?latitude={lat}&longitude={lon}&current_weather=true"
+        )
         weather_response = requests.get(weather_url)
         weather_data = weather_response.json()
 
@@ -430,27 +550,31 @@ def get_event_weather(event_id):
         if not current:
             return jsonify({"error": "No weather data available"}), 500
 
-        return jsonify({
-            "event_name": event.event_name,
-            "venue": venue.venue_name,
-            "city": city,
-            "temperature": current["temperature"],
-            "windspeed": current["windspeed"],
-            "weather_code": current["weathercode"]
-        })
+        return jsonify(
+            {
+                "event_name": event.event_name,
+                "venue": venue.venue_name,
+                "city": city,
+                "temperature": current["temperature"],
+                "windspeed": current["windspeed"],
+                "weather_code": current["weathercode"],
+            }
+        )
 
     except Exception as e:
-        import traceback
         traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
 
+# ============================================================
+# EXPORT PURCHASES (ADMIN ONLY)
+# ============================================================
 
 @auth_bp.route("/export/purchases", methods=["GET"])
 @jwt_required()
 def export_purchases():
     try:
-        from backend.models.customer import db, Purchase, PurchaseTicket, Ticket, Event, Customer
+        from backend.models.customer import Customer as CustModel
 
         claims = get_jwt()
         if claims.get("role") != "admin":
@@ -460,47 +584,66 @@ def export_purchases():
         os.makedirs(export_dir, exist_ok=True)
         filepath = os.path.join(export_dir, "purchases_export.csv")
 
+        purchases = Purchase.query.order_by(Purchase.purchase_id.asc()).all()
+
         with open(filepath, mode="w", newline="", encoding="utf-8") as file:
             writer = csv.writer(file)
-            writer.writerow([
-                "Purchase ID", "Customer ID", "Customer Email",
-                "Event Name", "Ticket Type", "Unit Price", "Quantity", "Line Subtotal",
-                "Total Amount", "Payment Method", "Payment Status", "Purchase Date"
-            ])
+            writer.writerow(
+                [
+                    "Purchase ID",
+                    "Customer ID",
+                    "Customer Email",
+                    "Event Name",
+                    "Ticket Type",
+                    "Unit Price",
+                    "Quantity",
+                    "Line Subtotal",
+                    "Total Amount",
+                    "Payment Method",
+                    "Payment Status",
+                    "Purchase Date",
+                ]
+            )
 
-            purchases = Purchase.query.order_by(Purchase.purchase_id.asc()).all()
             for p in purchases:
-                customer = Customer.query.get(p.customer_id)
+                customer = CustModel.query.get(p.customer_id)
                 pts = p.purchase_tickets
                 first = True
                 for pt in pts:
                     ticket = Ticket.query.get(pt.ticket_id)
                     event = Event.query.get(ticket.event_id) if ticket else None
 
-                    total_amt  = float(p.total_amount) if first else ""
+                    total_amt = float(p.total_amount) if first else ""
                     pay_method = p.payment_method if first else ""
                     pay_status = p.payment_status if first else ""
-                    purch_date = p.purchase_date.strftime("%Y-%m-%d %H:%M") if first else ""
+                    purch_date = (
+                        p.purchase_date.strftime("%Y-%m-%d %H:%M") if first else ""
+                    )
 
-                    writer.writerow([
-                        p.purchase_id if first else "",
-                        customer.customer_id if first else "",
-                        customer.email if first else "",
-                        event.event_name if event else "Unknown",
-                        ticket.ticket_type if ticket else "Unknown",
-                        f"{float(ticket.price):.2f}" if ticket else "",
-                        pt.quantity,
-                        f"{float(pt.subtotal):.2f}",
-                        f"{total_amt:.2f}" if isinstance(total_amt, float) else total_amt,
-                        pay_method,
-                        pay_status,
-                        purch_date
-                    ])
+                    writer.writerow(
+                        [
+                            p.purchase_id if first else "",
+                            customer.customer_id if first else "",
+                            customer.email if first else "",
+                            event.event_name if event else "Unknown",
+                            ticket.ticket_type if ticket else "Unknown",
+                            f"{float(ticket.price):.2f}" if ticket else "",
+                            pt.quantity,
+                            f"{float(pt.subtotal):.2f}",
+                            (
+                                f"{total_amt:.2f}"
+                                if isinstance(total_amt, float)
+                                else total_amt
+                            ),
+                            pay_method,
+                            pay_status,
+                            purch_date,
+                        ]
+                    )
                     first = False
 
         return send_file(filepath, as_attachment=True)
 
     except Exception as e:
-        import traceback
         traceback.print_exc()
         return jsonify({"error": str(e)}), 500
