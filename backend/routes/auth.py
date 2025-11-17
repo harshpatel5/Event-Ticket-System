@@ -1,7 +1,9 @@
 from flask import Blueprint, request, jsonify, send_file
 from backend.db import db
-from backend.models.customer import Event
-from backend.models.customer import Customer
+from backend.models.customer import Event, Category, Venue, Ticket, Customer, Purchase, PurchaseTicket
+
+
+
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity, get_jwt
 from backend.utils.roles import admin_required
 from datetime import datetime
