@@ -68,7 +68,6 @@ async function initAdminDashboard() {
             <td>${e.status}</td>
             <td>${e.total_tickets}</td>
             <td>${e.tickets_sold}</td>
-            <td>$${(e.total_revenue || 0).toFixed(2)}</td>
             <td>${e.organizer_email || ""}</td>
 
             <td>
