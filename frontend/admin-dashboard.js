@@ -180,7 +180,7 @@ document.getElementById("eventForm").addEventListener("submit", async (e) => {
 
   if (window.tempTickets && window.tempTickets.length > 0) {
     for (const t of window.tempTickets) {
-      await apiRequest(`${API_BASE_URL}/tickets`, {
+      await apiRequest(`${API_BASE_URL}/tickets/`, {
         method: "POST",
         body: JSON.stringify({
           event_id: eventId,
