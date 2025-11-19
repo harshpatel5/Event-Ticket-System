@@ -1026,7 +1026,7 @@ button {
     align-items: center;
     gap: 6px;
     font-size: 14px;
-    color: #fff;
+    color: var(--text);
 }
 
 .weather-widget img {

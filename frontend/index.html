@@ -21,18 +21,23 @@
                 <span class="logo-text">TixMaster</span>
             </div>
 
-            <div class="header-actions" id="authButtons">
-                <!--weather navbar-->
-                 <div id="weatherWidget" class="weather-widget">
-                    <span id="weatherCity">Loading...</span>
-                    <span id="weatherTemp"></span>
-                    <img id="weatherIcon" style="width: 26px; height: 26px;" />
-                </div>
+            <div class="header-actions">
 
-                <!-- JS will replace this content depending on login -->
-                <button class="btn-secondary" onclick="window.location.href='login.html'">Sign In</button>
-                <button class="btn-primary" onclick="window.location.href='sell-tickets.html'">Sell Tickets</button>
-            </div>
+    <!-- weather widget stays outside authButtons -->
+    <div id="weatherWidget" class="weather-widget">
+        <span id="weatherCity">Loading...</span>
+        <span id="weatherTemp"></span>
+        <img id="weatherIcon" style="width: 26px; height: 26px;" />
+    </div>
+
+    <!-- JS will ONLY replace this, weather remains untouched -->
+    <div id="authButtons">
+        <button class="btn-secondary" onclick="window.location.href='login.html'">Sign In</button>
+        <button class="btn-primary" onclick="window.location.href='sell-tickets.html'">Sell Tickets</button>
+    </div>
+
+</div>
+
 
             <button class="mobile-menu-btn" id="mobileMenuBtn" aria-label="Toggle menu">
                 <svg class="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
