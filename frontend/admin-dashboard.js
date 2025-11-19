@@ -1,5 +1,7 @@
 document.addEventListener("DOMContentLoaded", () => {
   initAdminDashboard();
+  loadCategories();
+  loadVenues();
 });
 
 async function initAdminDashboard() {
@@ -46,17 +48,15 @@ async function initAdminDashboard() {
               day: "numeric",
               year: "numeric",
               hour: "2-digit",
-              minute: "2-digit",
+              minute: "2-digit"
             });
-
-        const statusClass = getStatusClass(e.status);
 
         return `
           <tr>
             <td>${e.event_id}</td>
             <td>${e.event_name}</td>
             <td>${formattedDate}</td>
-            <td><span class="status-pill ${statusClass}">${e.status}</span></td>
+            <td>${e.status}</td>
             <td>${e.total_tickets}</td>
             <td>${e.tickets_sold}</td>
             <td>${e.organizer_email || ""}</td>
@@ -75,26 +75,17 @@ async function initAdminDashboard() {
   }
 }
 
-function getStatusClass(status) {
-  if (!status) return "status-upcoming";
-  switch (status.toLowerCase()) {
-    case "upcoming": return "status-upcoming";
-    case "ongoing": return "status-ongoing";
-    case "completed": return "status-completed";
-    case "cancelled": return "status-cancelled";
-    default: return "status-upcoming";
-  }
-}
-
 function openCreateEvent() {
   document.getElementById("modalTitle").textContent = "Create Event";
   document.getElementById("eventId").value = "";
   document.getElementById("eventForm").reset();
+  document.getElementById("ticketList").innerHTML = "";
   document.getElementById("eventModal").classList.remove("hidden");
 }
 
 function openEditEvent(id) {
   const e = window.adminEvents.find(x => x.event_id === id);
+
   document.getElementById("modalTitle").textContent = "Edit Event";
   document.getElementById("eventId").value = id;
   document.getElementById("eventName").value = e.event_name;
@@ -103,11 +94,47 @@ function openEditEvent(id) {
   document.getElementById("eventCategory").value = e.category_id;
   document.getElementById("eventVenue").value = e.venue_id;
   document.getElementById("eventTotalTickets").value = e.total_tickets;
+
+  document.getElementById("ticketList").innerHTML = "";
+
   document.getElementById("eventModal").classList.remove("hidden");
 }
 
 function closeModal() {
   document.getElementById("eventModal").classList.add("hidden");
+}
+
+document.getElementById("addTicketBtn").addEventListener("click", () => {
+  const type = document.getElementById("ticketType").value;
+  const price = document.getElementById("ticketPrice").value;
+  const qty = document.getElementById("ticketQty").value;
+
+  if (!type || !price || !qty) return;
+
+  const container = document.getElementById("ticketList");
+  const id = Date.now();
+
+  container.insertAdjacentHTML(
+    "beforeend",
+    `
+    <div class="ticket-row" data-id="${id}">
+      <span>${type} - $${price} (${qty})</span>
+      <button onclick="removeTicket(${id})">X</button>
+    </div>
+  `
+  );
+
+  if (!window.tempTickets) window.tempTickets = [];
+  window.tempTickets.push({ type, price, qty, rowId: id });
+
+  document.getElementById("ticketType").value = "";
+  document.getElementById("ticketPrice").value = "";
+  document.getElementById("ticketQty").value = "";
+});
+
+function removeTicket(rowId) {
+  document.querySelector(`.ticket-row[data-id="${rowId}"]`)?.remove();
+  window.tempTickets = window.tempTickets.filter(t => t.rowId !== rowId);
 }
 
 document.getElementById("eventForm").addEventListener("submit", async (e) => {
@@ -124,16 +151,34 @@ document.getElementById("eventForm").addEventListener("submit", async (e) => {
     total_tickets: parseInt(document.getElementById("eventTotalTickets").value)
   };
 
+  let eventId = id;
+
   if (id) {
     await apiRequest(API_ENDPOINTS.admin.updateEvent(id), {
       method: "PUT",
       body: JSON.stringify(payload)
     });
   } else {
-    await apiRequest(API_ENDPOINTS.admin.createEvent, {
+    const created = await apiRequest(API_ENDPOINTS.admin.createEvent, {
       method: "POST",
       body: JSON.stringify(payload)
     });
+    eventId = created.event_id;
+  }
+
+  if (window.tempTickets && window.tempTickets.length > 0) {
+    for (const t of window.tempTickets) {
+      await apiRequest(`${API_BASE_URL}/tickets`, {
+        method: "POST",
+        body: JSON.stringify({
+          event_id: eventId,
+          ticket_type: t.type,
+          price: parseFloat(t.price),
+          quantity_available: parseInt(t.qty)
+        })
+      });
+    }
+    window.tempTickets = [];
   }
 
   closeModal();
@@ -148,4 +193,16 @@ async function deleteEvent(id) {
   });
 
   initAdminDashboard();
+}
+
+async function loadCategories() {
+  const categories = await apiRequest(`${API_BASE_URL}/categories/`);
+  const select = document.getElementById("eventCategory");
+  select.innerHTML = categories.map(c => `<option value="${c.category_id}">${c.category_name}</option>`).join("");
+}
+
+async function loadVenues() {
+  const venues = await apiRequest(`${API_BASE_URL}/venues/`);
+  const select = document.getElementById("eventVenue");
+  select.innerHTML = venues.map(v => `<option value="${v.venue_id}">${v.venue_name}</option>`).join("");
 }

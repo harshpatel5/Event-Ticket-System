@@ -29,14 +29,17 @@ async function loadEventDetails() {
 
     // 2. Load relational data
     const tickets = await apiRequest(`${API_BASE_URL}/event-tickets/${eventId}`);
+    console.log("eventId used for tickets:", eventId);
+    console.log("tickets returned:", tickets);
+
     const categories = await apiRequest(`${API_BASE_URL}/categories/`);
     const venues = await apiRequest(`${API_BASE_URL}/venues/`);
 
     console.log("===== ALL VENUES =====");
-console.log(venues);
+    console.log(venues);
 
-console.log("===== ALL CATEGORIES =====");
-console.log(categories);
+    console.log("===== ALL CATEGORIES =====");
+    console.log(categories);
 
 
     // 3. Join relational data

@@ -84,7 +84,11 @@ def create_event():
         db.session.add(new_event)
         db.session.commit()
 
-        return jsonify({"message": "Event created successfully"}), 201
+        return jsonify({
+            "message": "Event created successfully",
+             "event_id": new_event.event_id
+        }), 201
+
 
     except Exception as e:
         return jsonify({"error": str(e)}), 400

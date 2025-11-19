@@ -8,6 +8,7 @@
   </head>
 
   <body>
+    <!-- header -->
     <header class="header" id="header">
       <div class="container">
         <div class="header-content">
@@ -16,6 +17,7 @@
             onclick="window.location.href='index.html'"
             style="cursor: pointer"
           >
+            <!-- icon -->
             <svg
               class="logo-icon"
               viewBox="0 0 24 24"
@@ -44,13 +46,11 @@
       </div>
     </header>
 
+    <!-- main -->
     <main class="admin-container">
       <div class="admin-header">
         <div>
           <h1 class="admin-title">Admin Dashboard</h1>
-          <p class="admin-subtitle">
-            These are the events where your email is listed as the organizer.
-          </p>
         </div>
 
         <div style="display: flex; align-items: center; gap: 16px;">
@@ -64,7 +64,7 @@
 
       <div class="admin-card">
         <div id="adminStatus" style="margin-bottom: 16px;">
-          Loading your events...
+          loading...
         </div>
 
         <table
@@ -88,61 +88,105 @@
         </table>
 
         <div id="adminEmpty" class="admin-empty" style="display: none;">
-          <h3>No events found for your organizer email.</h3>
-          <p>
-            Make sure your account email matches
-            <code>EVENT.organizer_email</code> in the database.
-          </p>
+          <h3>no events found</h3>
+          <p>ur email might not match event.organizer_email</p>
         </div>
       </div>
     </main>
 
-    <div id="eventModal" class="modal hidden">
-      <div class="modal-content">
-        <h2 id="modalTitle">Create Event</h2>
+    <!-- modal -->
+    <!-- modal -->
+<div id="eventModal" class="modal hidden">
+  <div class="modal-content scroll-box">
+    <!-- // title -->
+    <h2 id="modalTitle">Create Event</h2>
 
-        <form id="eventForm">
-          <input type="hidden" id="eventId" />
+    <!-- // form -->
+    <form id="eventForm">
+      <input type="hidden" id="eventId" />
 
-          <label>Event Name</label>
-          <input type="text" id="eventName" required />
+      <!-- // name -->
+      <label>Event Name</label>
+      <input type="text" id="eventName" required />
 
-          <label>Date & Time</label>
-          <input type="datetime-local" id="eventDate" required />
+      <!-- // time -->
+      <label>Event Date</label>
+      <input type="datetime-local" id="eventDate" required />
 
-          <label>Description</label>
-          <textarea id="eventDescription"></textarea>
+      <!-- // desc -->
+      <label>Description</label>
+      <textarea id="eventDescription"></textarea>
 
-          <label>Category ID</label>
-          <input type="number" id="eventCategory" required />
+      <!-- // org name -->
+      <label>Organizer Name</label>
+      <input type="text" id="eventOrganizer" required />
 
-          <label>Venue ID</label>
-          <input type="number" id="eventVenue" required />
+      <!-- // org email -->
+      <label>Organizer Email</label>
+      <input type="email" id="eventEmail" />
 
-          <label>Total Tickets</label>
-          <input type="number" id="eventTotalTickets" required />
+      <!-- // cat -->
+      <label>Category</label>
+      <select id="eventCategory" required></select>
 
-          <button class="btn-primary" type="submit">Save</button>
-          <button
-            class="btn-secondary"
-            type="button"
-            onclick="closeModal()"
-            style="margin-top: 8px;"
-          >
-            Cancel
-          </button>
-        </form>
+      <!-- // venu -->
+      <label>Venue</label>
+      <select id="eventVenue" required></select>
+
+      <!-- // total -->
+      <label>Total Tickets</label>
+      <input type="number" id="eventTotalTickets" required />
+
+      <hr />
+
+      <!--  tickets section -->
+      <h3>Tickets</h3>
+
+      <div class="ticket-inputs">
+        <!--  ticekt type -->
+        <label>Ticket Type</label>
+        <input type="text" id="ticketType" />
+
+        <!--  ticket price -->
+        <label>Ticket Price</label>
+        <input type="number" id="ticketPrice" />
+
+        <!-- // qty -->
+        <label>Quantity</label>
+        <input type="number" id="ticketQty" />
+
+        <button type="button" id="addTicketBtn">Add</button>
       </div>
-    </div>
 
+      <!-- // ticket list -->
+      <div id="ticketList"></div>
+
+      <!-- // save btn -->
+      <button class="btn-primary" type="submit">Save</button>
+
+      <button
+        class="btn-secondary"
+        type="button"
+        onclick="closeModal()"
+        style="margin-top: 8px;"
+      >
+        Cancel
+      </button>
+    </form>
+  </div>
+</div>
+
+
+    <!-- footer -->
     <footer class="footer">
       <div class="container">
         <div class="footer-bottom">
-          <p class="copyright">© 2025 TixMaster. All rights reserved.</p>
+          <p class="copyright">© 2025 TixMaster.</p>
         </div>
       </div>
     </footer>
 
+    <!-- scripts -->
     <script src="api-config.js"></script>
     <script src="admin-dashboard.js"></script>
   </body>
