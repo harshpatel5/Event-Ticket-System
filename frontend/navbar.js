@@ -1,30 +1,32 @@
 document.addEventListener("DOMContentLoaded", async () => {
     const authButtons = document.getElementById("authButtons");
 
+    let user = null;
+
     try {
-        const user = await fetchCurrentUser(); // GET /me
-
-        if (!user || !user.first_name) {
-            authButtons.innerHTML = `
-                <button class="btn-secondary" onclick="window.location.href='login.html'">Sign In</button>
-                <button class="btn-primary" onclick="window.location.href='category.html?category=All'">Buy Tickets</button>
-            `;
-            return;
-        }
-
-        // Logged-in users
-        authButtons.innerHTML = `
-            <span class="user-greeting">Hello, ${user.first_name} ${user.last_name}</span>
-            <button class="btn-secondary" onclick="logout()">Logout</button>
-            ${user.role === "admin" ? `
-                <button class="btn-primary" onclick="window.location.href='admin-dashboard.html'">Admin Panel</button>` 
-            : `
-                <button class="btn-primary" onclick="window.location.href='customer-dashboard.html'">My Tickets</button>`
-            }
-        `;
+        user = await fetchCurrentUser();   // may fail with 401
     } catch (err) {
-        console.error("Navbar user load failed:", err);
+        console.warn("User not logged in, showing default navbar.");
     }
+
+    // NOT LOGGED IN
+    if (!user || user.error || user.msg) {
+        authButtons.innerHTML = `
+            <button class="btn-secondary" onclick="window.location.href='login.html'">Sign In</button>
+        `;
+        return;
+    }
+
+    // LOGGED IN
+    authButtons.innerHTML = `
+        <span class="user-greeting">Hello, ${user.first_name} ${user.last_name}</span>
+        <button class="btn-secondary" onclick="logout()">Logout</button>
+        ${
+            user.role === "admin"
+            ? `<button class="btn-primary" onclick="window.location.href='admin-dashboard.html'">Admin Panel</button>`
+            : `<button class="btn-primary" onclick="window.location.href='customer-dashboard.html'">My Tickets</button>`
+        }
+    `;
 });
 
 function logout() {
@@ -33,7 +35,6 @@ function logout() {
     localStorage.removeItem("authEmail");
     window.location.reload();
 }
-
 
 // WEATHER
 async function loadNavbarWeather() {
@@ -47,10 +48,9 @@ async function loadNavbarWeather() {
         const data = await res.json();
 
         document.getElementById("weatherCity").textContent = city;
-        document.getElementById("weatherTemp").textContent =
-            `${Math.round(data.main.temp)}°C`;
+        document.getElementById("weatherTemp").textContent = `${Math.round(data.main.temp)}°C`;
         document.getElementById("weatherIcon").src =
-            `https://openweathermap.org/img/wn/${data.weather[0].icon}.png`;
+        `https://openweathermap.org/img/wn/${data.weather[0].icon}.png`;
     } catch (err) {
         document.getElementById("weatherCity").textContent = "Weather N/A";
     }

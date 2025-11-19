@@ -22,14 +22,38 @@
                 <span class="logo-text">TixMaster</span>
             </div>
 
-            <!-- AUTH UI (dynamic) -->
+            <!-- RIGHT SIDE -->
             <div class="header-actions">
-                <div id="authButtons"></div>
+
+                <!-- WEATHER WIDGET (ALWAYS VISIBLE) -->
+                <div id="weatherWidget" class="weather-widget">
+                    <span id="weatherCity">Loading...</span>
+                    <span id="weatherTemp"></span>
+                    <img id="weatherIcon" style="width: 26px; height: 26px;" />
+                </div>
+
+                <!-- AUTH AREA (navbar.js will populate this) -->
+                <div id="authButtons" class="auth-area"></div>
+
             </div>
+
+            <!-- MOBILE MENU BUTTON -->
+            <button class="mobile-menu-btn" id="mobileMenuBtn" aria-label="Toggle menu">
+                <svg class="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="3" y1="6" x2="21" y2="6"/>
+                    <line x1="3" y1="12" x2="21" y2="12"/>
+                    <line x1="3" y1="18" x2="21" y2="18"/>
+                </svg>
+                <svg class="close-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="6" x2="6" y2="18"/>
+                    <line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+            </button>
 
         </div>
     </div>
 </header>
+
 
 
     <!-- Category Hero -->
@@ -107,7 +131,8 @@
 
     <!-- Scripts (order is IMPORTANT) -->
     <script src="api-config.js"></script>
-    <script src="auth.js"></script>       <!-- must load before category.js -->
+    <script src="navbar.js"></script>
+    <!--<script src="auth.js"></script> -->      <!-- must load before category.js -->
     <script src="category.js"></script>
 
 </body>

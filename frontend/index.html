@@ -13,6 +13,7 @@
     <div class="container">
         <div class="header-content">
 
+            <!-- LOGO -->
             <div class="logo" onclick="window.location.href='index.html'">
                 <svg class="logo-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M3 7v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-6l-2-2H5a2 2 0 0 0-2 2Z"/>
@@ -22,21 +23,22 @@
                 <span class="logo-text">TixMaster</span>
             </div>
 
-           <div class="header-actions">
+            <!-- RIGHT SIDE WRAPPER -->
+            <div class="header-actions">
 
-    <div id="weatherWidget" class="weather-widget">
-        <span id="weatherCity">Loading...</span>
-        <span id="weatherTemp"></span>
-        <img id="weatherIcon" style="width: 26px; height: 26px;">
-    </div>
+                <!-- Weather always visible -->
+                <div id="weatherWidget" class="weather-widget">
+                    <span id="weatherCity">Loading...</span>
+                    <span id="weatherTemp"></span>
+                    <img id="weatherIcon" style="width: 26px; height: 26px;">
+                </div>
 
-    <div id="authButtons" class="auth-area">
-        <!-- navbar.js will inject greeting here -->
-    </div>
+                <!-- Auth buttons injected by navbar.js -->
+                <div id="authButtons" class="auth-area"></div>
 
-</div>
+            </div> <!-- END header-actions -->
 
-
+            <!-- Mobile menu toggle button -->
             <button class="mobile-menu-btn" id="mobileMenuBtn" aria-label="Toggle menu">
                 <svg class="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <line x1="3" y1="6" x2="21" y2="6"/>
@@ -49,9 +51,10 @@
                 </svg>
             </button>
 
-        </div>
-    </div>
+        </div> <!-- END header-content -->
+    </div> <!-- END container -->
 </header>
+
 
 <section class="hero">
     <div class="container">
